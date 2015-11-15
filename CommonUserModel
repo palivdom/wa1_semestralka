@@ -1,0 +1,85 @@
+<?php
+
+namespace App\Model;
+
+use Nette;
+
+class CommonUserModel extends \App\Model\UserModel implements Nette\Security\IAuthenticator {
+
+    const
+            TABLE_NAME = 'commons',
+            COLUMN_ID = 'id',
+            COLUMN_PROFILE_PIC = 'profile_pic',
+            COLUMN_AGE = 'age',
+            COLUMN_WEB = 'web';
+
+    public function __construct(Nette\Database\Context $database) {
+        parent::__construct($database);
+    }
+
+    public function add($nick, $password, $email, $surname, $name, $reg_date, $profile_pic, $age, $web) {
+
+        parent::addUser($nick, $password, $email, $surname, $name, $reg_date);
+        $id = $this->database->table(parent::TABLE_NAME)->where("nick = ?", $nick)->id;
+
+        try {
+            $this->database->table(self::TABLE_NAME)->insert(array(
+                self::COLUMN_ID => $id,
+                self::COLUMN_AGE => $age,
+                self::COLUMN_PROFILE_PIC => $profile_pic,
+                self::COLUMN_WEB => $web
+            ));
+        } catch (\Nette\Database\UniqueConstraintViolationException $ex) {
+            throw new DuplicateUserProfilePicException;
+        }
+    }
+
+    public function updateWeb($web) {
+        $this->database->table(self::TABLE_NAME)->insert(array(
+            self::COLUMN_WEB => $web));
+    }
+
+    public function updateAge($age) {
+        $this->database->table(self::TABLE_NAME)->insert(array(
+            self::COLUMN_AGE => $age));
+    }
+
+    public function updateProfilePic($pic) {
+        try {
+            $this->database->table(self::TABLE_NAME)->insert(array(
+                self::COLUMN_PROFILE_PIC => $pic));
+        } catch (\Nette\Database\UniqueConstraintViolationException $ex) {
+            throw new DuplicateUserProfilePicException;
+        }
+    }
+
+    /**
+     * @return \Nette\Database\Context
+     */
+    public function getAll() {
+        return $this->database->table(self::TABLE_NAME);
+    }
+
+    /**
+     * 
+     * @param int $offset
+     * @param int $limit
+     * @return \Nette\Database\Table\Selection
+     */
+    public function getByLimit($offset, $limit) {
+        return $this->database->table(self::TABLE_NAME)->limit($limit, $offset);
+    }
+
+    public function getAllJoined() {
+        $this->database->query("SELECT id, users.nick as nick, users.name as name, users.surname as surname, users.email as email, users.reg_date as reg_date, profile_pic, age, web FROM commons JOIN users ON id=users.id");
+    }
+
+    public function getJoined($id) {
+        $this->database->query("SELECT id, users.nick as nick, users.name as name, users.surname as surname, users.email as email, users.reg_date as reg_date, profile_pic, age, web FROM commons JOIN users WHERE $id=users.id");
+    }
+
+}
+
+class DuplicateUserProfilePicException extends \Exception {
+    
+}
