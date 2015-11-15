@@ -1,0 +1,106 @@
+<?php
+
+namespace App\Model;
+
+use Nette;
+
+abstract class UserModel extends Nette\Object implements Nette\Security\IAuthenticator {
+
+    const
+            TABLE_NAME = 'users',
+            COLUMN_ID = 'id',
+            COLUMN_NICK = 'nick',
+            COLUMN_PASSWORD = 'password',
+            COLUMN_EMAIL = 'email',
+            COLUMN_SURNAME = 'surname',
+            COLUMN_NAME = 'name',
+            COLUMN_REGISTRATION_DATE = 'registration_date',
+            COLUMN_ACTIVE = 'active';
+
+    /** @var Nette\Database\Context */
+    private $database;
+
+    public function __construct(Nette\Database\Context $database) {
+        $this->database = $database;
+    }
+
+    public function authenticate(array $credentials) {
+        list($username, $password) = $credentials;
+
+        $row = $this->database->table(self::TABLE_NAME)->where(self::COLUMN_EMAIL, $username)->fetch();
+
+        $passwordHash = $this->hashPassword($password);
+        if (!$row) {
+            throw new Nette\Security\AuthenticationException('Nesprávné uživatelské jméno.', self::IDENTITY_NOT_FOUND);
+        } elseif ($row[self::COLUMN_PASSWORD] != $passwordHash) {
+            throw new Nette\Security\AuthenticationException('Nesprávné heslo.', self::INVALID_CREDENTIAL);
+        }
+        $arr = $row->toArray();
+        unset($arr[self::COLUMN_PASSWORD]);
+        return new Nette\Security\Identity($row[self::COLUMN_ID], $row[self::COLUMN_ROLE], $arr);
+    }
+
+    protected function addUser($nick, $password, $email, $surname, $name, $reg_date) {
+        $password = $this->hashPassword($password);
+        try {
+            $this->database->table(self::TABLE_NAME)->insert(array(self::COLUMN_NICK => $nick));
+        } catch (\Nette\Database\UniqueConstraintViolationException $ex) {
+            throw new DuplicateUserNickException;
+        }
+        try {
+            $this->database->table(self::TABLE_NAME)->insert(array(
+                self::COLUMN_PASSWORD => $password,
+                self::COLUMN_EMAIL => $email,
+                self::COLUMN_SURNAME => $surname,
+                self::COLUMN_NAME => $name,
+                self::COLUMN_REGISTRATION_DATE => date("Y-n-d"),
+                self::COLUMN_ACTIVE => 1
+            ));
+        } catch (\Nette\Database\UniqueConstraintViolationException $ex) {
+            throw new DuplicateUserEmailException;
+        }
+    }
+
+    /**
+     * @param int $id
+     * @return \Nette\Database\Table\Selection 
+     */
+    public function get($id) {
+        return $this->database->table(self::TABLE_NAME)->get($id);
+    }
+
+    /**
+     * @return \Nette\Database\Context
+     */
+    public function getAll() {
+        return $this->database->table(self::TABLE_NAME);
+    }
+
+    /**
+     * 
+     * @param int $offset
+     * @param int $limit
+     * @return \Nette\Database\Table\Selection
+     */
+    public function getByLimit($offset, $limit) {
+        return $this->database->table(self::TABLE_NAME)->limit($limit, $offset);
+    }
+
+    /**
+     * Hashes given password.
+     * @param string $password
+     * @return string
+     */
+    private function hashPassword($password) {
+        return md5(sha1($password . "řđ]^s"));
+    }
+
+}
+
+class DuplicateUserEmailException extends \Exception {
+    
+}
+
+class DuplicateUserNickException extends \Exception {
+    
+}
