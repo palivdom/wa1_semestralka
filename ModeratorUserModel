@@ -1,0 +1,60 @@
+<?php
+
+namespace App\Model;
+
+use Nette;
+
+class ModeratorUserModel extends \App\Model\UserModel implements Nette\Security\IAuthenticator {
+
+    const
+            TABLE_NAME = 'moderators',
+            COLUMN_ID = 'id',
+            COLUMN_CHECK_COUNT = 'check_count';
+
+    public function __construct(Nette\Database\Context $database) {
+        parent::__construct($database);
+    }
+
+    public function add($nick, $password, $email, $surname, $name, $reg_date) {
+
+        parent::addUser($nick, $password, $email, $surname, $name, $reg_date);
+        $id = $this->database->table(parent::TABLE_NAME)->where("nick = ?", $nick)->id;
+        try {
+            $this->database->table(self::TABLE_NAME)->insert(array(
+                self::COLUMN_ID => $id,
+            ));
+        } catch (\Nette\Database\UniqueConstraintViolationException $ex) {
+            throw new DuplicateUserProfilePicException;
+        }
+    }
+
+    public function increaseCheckCount($id) {
+        $this->database->table(self::TABLE_NAME)->update(array(self::COLUMN_CHECK_COUNT => new SqlLiteral(self::COLUMN_CHECK_COUNT + ' + 1')))->where(self::COLUMN_ID, $id);
+    }
+
+    /**
+     * @return \Nette\Database\Context
+     */
+    public function getAll() {
+        return $this->database->table(self::TABLE_NAME);
+    }
+
+    /**
+     * 
+     * @param int $offset
+     * @param int $limit
+     * @return \Nette\Database\Table\Selection
+     */
+    public function getByLimit($offset, $limit) {
+        return $this->database->table(self::TABLE_NAME)->limit($limit, $offset);
+    }
+
+    public function getAllJoined() {
+        $this->database->query("SELECT id, users.nick as nick, users.name as name, users.surname as surname, users.email as email, users.reg_date as reg_date, check_count FROM moderators JOIN users ON id=users.id");
+    }
+
+    public function getJoined($id) {
+        $this->database->query("SELECT id, users.nick as nick, users.name as name, users.surname as surname, users.email as email, users.reg_date as reg_date, check_count FROM moderators JOIN users WHERE $id=users.id");
+    }
+
+}
